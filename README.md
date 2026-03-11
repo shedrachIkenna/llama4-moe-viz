@@ -2,9 +2,9 @@
 
 An interactive, step-by-step 3D visualisation of the **Mixture-of-Experts forward pass** used in [Llama 4](https://ai.meta.com/blog/llama-4-multimodal-intelligence/). Every tensor operation is animated in real time — shapes, addresses, and data flow — so you can *see* exactly what the code is doing.
 
-**[→ Live demo](https://your-username.github.io/moe-viz/)** *(update after deploying to GitHub Pages)*
+**[→ Live demo](llama4-moe-viz.netlify.app/)** 
 
-![screenshot](screenshot.png)
+![screenshot](moe.png)
 
 ---
 
