@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MoE Forward Pass · Llama 4 Architecture Visualiser</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="hud">
+  <div id="pl" class="panel">
+    <div class="vname" id="vname-l">x_bsD</div>
+    <div id="sf" class="shp">[<span class="b">3</span>,<span class="s">3</span>,<span class="d">10</span>]</div>
+    <div id="vl">view(-1, D) →</div>
+    <div id="st" class="shp">[<span class="a">9</span>,<span class="d">10</span>]</div>
+    <div class="sub" id="sub-l">
+      <div><span class="b">B=3</span> · batch</div>
+      <div><span class="s">S=3</span> · sequence</div>
+      <div><span class="d">D=10</span> · features</div>
+    </div>
+  </div>
+
+  <div id="pm" class="panel">
+    <div class="vname">router_scores.T</div>
+    <div class="shp">[<span class="e">3</span>, <span class="a">9</span>]</div>
+    <div class="sub">
+      <div><span class="e">E=3</span> rows · experts</div>
+      <div><span class="a">A=9</span> cols · tokens</div>
+      <div><span class="e0c">■ E₀</span> &nbsp;<span class="e1c">■ E₁</span> &nbsp;<span class="e2c">■ E₂</span></div>
+    </div>
+  </div>
+
+  <div id="pr" class="panel">
+    <div id="pr-inner">
+      <div class="scol">
+        <div class="vname">scores_aK</div>
+        <div class="shp">[<span class="a">9</span>, <span class="k">1</span>]</div>
+        <div class="sub">
+          <div><span class="k">top-1 score</span></div>
+          <div style="color:var(--lo)">best expert score</div>
+        </div>
+      </div>
+      <div class="sep-v"></div>
+      <div class="scol">
+        <div class="vname">indices_aK</div>
+        <div class="shp">[<span class="a">9</span>, <span class="k">1</span>]</div>
+        <div class="sub">
+          <div><span class="k">top-1 index</span></div>
+          <div style="color:var(--lo)">which expert (0/1/2)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="prf" class="panel" style="right:28px;top:28px;text-align:right;opacity:0;pointer-events:none;position:absolute;">
+    <div class="vname">router_indices</div>
+    <div class="shp">[<span class="e">3</span>, <span class="a">9</span>]</div>
+    <div class="sub">
+      <div><span class="e">E=3</span> rows · experts</div>
+      <div><span class="a">A=9</span> cols · tokens</div>
+      <div style="color:var(--lo)">every row = [0..8]</div>
+    </div>
+  </div>
+  <div id="pri" class="panel" style="right:340px;top:28px;text-align:right;opacity:0;pointer-events:none;position:absolute;">
+    <div class="vname">router_indices_exp</div>
+    <div class="shp">[<span class="a">27</span>, <span class="d">10</span>]</div>
+    <div class="sub">
+      <div><span class="a">27</span> rows · E×A flat</div>
+      <div><span class="d">D=10</span> cols · broadcast</div>
+      <div style="color:var(--lo)">index = row % A</div>
+    </div>
+  </div>
+  <div id="pws" class="panel" style="right:28px;top:28px;text-align:right;opacity:0;pointer-events:none;position:absolute;">
+    <div class="vname">routed_in_EG_D</div>
+    <div class="shp">[<span class="d">27</span>, <span class="d">10</span>]</div>
+    <div class="sub">
+      <div style="color:var(--G)">× sigmoid weights</div>
+      <div><span class="a">9</span> active rows</div>
+      <div><span style="color:var(--lo)">18 zero rows</span></div>
+    </div>
+  </div>
+  <div id="pgg" class="panel" style="right:28px;top:28px;text-align:right;opacity:0;pointer-events:none;position:absolute;">
+    <div class="vname">routed_in_EG_D</div>
+    <div class="shp">[<span class="d">27</span>, <span class="d">10</span>]</div>
+    <div class="sub">
+      <div><span class="e">E=3</span> expert blocks</div>
+      <div><span class="a">G=9</span> tokens per block</div>
+      <div><span class="d">D=10</span> features</div>
+    </div>
+  </div>
+  <div id="pout3d" class="panel" style="left:28px;top:28px;text-align:left;opacity:0;pointer-events:none;position:absolute;">
+    <div class="vname">out_bsD</div>
+    <div class="shp">[<span class="b">3</span>, <span class="s">3</span>, <span class="d">10</span>]</div>
+    <div class="sub">
+      <div><span class="b">B=3</span> · batch</div>
+      <div><span class="s">S=3</span> · sequence</div>
+      <div><span class="d">D=10</span> · features</div>
+    </div>
+  </div>
+  <div id="pout" class="panel" style="left:28px;top:28px;text-align:left;opacity:0;pointer-events:none;position:absolute;">
+    <div class="vname">out_aD</div>
+    <div class="shp">[<span class="a">9</span>, <span class="d">10</span>]</div>
+    <div class="sub">
+      <div style="color:var(--G)">+ expert contributions</div>
+      <div><span class="a">A=9</span> tokens</div>
+      <div><span class="d">D=10</span> features</div>
+    </div>
+  </div>
+  <div id="sl"><strong id="sn">ORIGIN</strong><span id="sd">x_bsD · 3D tensor — batch × seq × features</span></div>
+
+  <div id="code">
+    <span class="hl">scores_aK</span>, <span class="hl">indices_aK</span>
+    <span class="lo"> = torch.topk(</span><span class="he">router_scores</span><span class="lo">.T, </span><span class="hk">K=1</span><span class="lo">, dim=1)</span>
+  </div>
+
+  <div id="code2" style="position:absolute;bottom:90px;left:50%;transform:translateX(-50%);
+      background:rgba(10,14,26,.88);border:1px solid var(--border);
+      padding:9px 22px;font-size:10px;letter-spacing:.09em;line-height:1.9;
+      text-align:center;opacity:0;transition:opacity .5s;
+      backdrop-filter:blur(8px);white-space:nowrap;pointer-events:none">
+    <span style="color:var(--lo)">router_scores = torch.full_like(…).scatter_(1, </span><span style="color:var(--K)">indices_aK</span><span style="color:var(--lo)">, </span><span style="color:var(--K)">scores_aK</span><span style="color:var(--lo)">)</span>
+  </div>
+
+  <div id="code3" style="position:absolute;bottom:90px;left:50%;transform:translateX(-50%);
+      background:rgba(10,14,26,.88);border:1px solid var(--border);
+      padding:9px 22px;font-size:10px;letter-spacing:.09em;line-height:1.9;
+      text-align:center;opacity:0;transition:opacity .5s;
+      backdrop-filter:blur(8px);white-space:nowrap;pointer-events:none">
+    <span style="color:var(--lo)">router_scores = torch.</span><span style="color:var(--G)">sigmoid</span><span style="color:var(--lo)">(router_scores)</span>
+  </div>
+
+  <div id="code4" style="position:absolute;bottom:90px;left:50%;transform:translateX(-50%);
+      background:rgba(10,14,26,.88);border:1px solid var(--border);
+      padding:9px 22px;font-size:10px;letter-spacing:.09em;line-height:1.9;
+      text-align:center;opacity:0;transition:opacity .5s;
+      backdrop-filter:blur(8px);white-space:nowrap;pointer-events:none">
+    <span style="color:var(--lo)">router_indices = torch.arange(</span><span style="color:var(--A)">A</span><span style="color:var(--lo)">).view(1,−1).expand(</span><span style="color:var(--E)">E</span><span style="color:var(--lo)">, −1)</span>
+  </div>
+  <div id="code5" style="position:absolute;bottom:90px;left:50%;transform:translateX(-50%);
+      background:rgba(10,14,26,.88);border:1px solid var(--border);
+      padding:9px 22px;font-size:10px;letter-spacing:.09em;line-height:1.9;
+      text-align:center;opacity:0;transition:opacity .5s;
+      backdrop-filter:blur(8px);white-space:nowrap;pointer-events:none">
+    <span style="color:var(--lo)">routed_in_EG_D = torch.</span><span style="color:var(--D)">gather</span><span style="color:var(--lo)">(x_aD, dim=0, index=router_indices.reshape(−1,1).expand(−1,</span><span style="color:var(--D)">D</span><span style="color:var(--lo)">))</span>
+  </div>
+  <div id="code6" style="position:absolute;bottom:90px;left:50%;transform:translateX(-50%);
+      background:rgba(10,14,26,.88);border:1px solid var(--border);
+      padding:9px 22px;font-size:10px;letter-spacing:.09em;line-height:1.9;
+      text-align:center;opacity:0;transition:opacity .5s;
+      backdrop-filter:blur(8px);white-space:nowrap;pointer-events:none">
+    <span style="color:var(--lo)">routed_in_EG_D = routed_in_EG_D * </span><span style="color:var(--E)">router_scores</span><span style="color:var(--lo)">.reshape(−1, 1)</span>
+  </div>
+  <div id="code7" style="position:absolute;bottom:90px;left:50%;transform:translateX(-50%);
+      background:rgba(10,14,26,.88);border:1px solid var(--border);
+      padding:9px 22px;font-size:10px;letter-spacing:.09em;line-height:1.9;
+      text-align:center;opacity:0;transition:opacity .5s;
+      backdrop-filter:blur(8px);white-space:nowrap;pointer-events:none">
+    <span style="color:var(--lo)">router_indices_EG_D = </span><span style="color:var(--A)">router_indices</span><span style="color:var(--lo)">.reshape(−1, 1).expand(−1, </span><span style="color:var(--D)">D</span><span style="color:var(--lo)">)</span>
+  </div>
+  <div id="code9" style="position:absolute;bottom:90px;left:50%;transform:translateX(-50%);
+      background:rgba(10,14,26,.88);border:1px solid var(--border);
+      padding:9px 22px;font-size:10px;letter-spacing:.09em;line-height:1.9;
+      text-align:center;opacity:0;transition:opacity .5s;
+      backdrop-filter:blur(8px);white-space:nowrap;pointer-events:none">
+    <span style="color:var(--lo)">return out_aD.</span><span style="color:var(--G)">view</span><span style="color:var(--lo)">(−1, </span><span style="color:var(--s)">slen</span><span style="color:var(--lo)">, </span><span style="color:var(--D)">D</span><span style="color:var(--lo)">)  →  out_bsD [</span><span style="color:var(--b)">3</span><span style="color:var(--lo)">, </span><span style="color:var(--s)">3</span><span style="color:var(--lo)">, </span><span style="color:var(--D)">10</span><span style="color:var(--lo)">]</span>
+  </div>
+  <div id="code8" style="position:absolute;bottom:90px;left:50%;transform:translateX(-50%);
+      background:rgba(10,14,26,.88);border:1px solid var(--border);
+      padding:9px 22px;font-size:10px;letter-spacing:.09em;line-height:1.9;
+      text-align:center;opacity:0;transition:opacity .5s;
+      backdrop-filter:blur(8px);white-space:nowrap;pointer-events:none">
+    <span style="color:var(--lo)">out_aD.</span><span style="color:var(--G)">scatter_add_</span><span style="color:var(--lo)">(dim=0, index=</span><span style="color:var(--A)">router_indices_EG_D</span><span style="color:var(--lo)">, src=</span><span style="color:var(--D)">routed_out_eg_D</span><span style="color:var(--lo)">)</span>
+  </div>
+  <div id="bot">
+    <div id="dots">
+      <div class="dot on" id="d0"></div>
+      <div class="dot"    id="d1"></div>
+      <div class="dot"    id="d2"></div>
+      <div class="dsep"></div>
+      <div class="dot"    id="d3"></div>
+      <div class="dot"    id="d4"></div>
+      <div class="dsep"></div>
+      <div class="dot"    id="d5"></div>
+      <div class="dot"    id="d6"></div>
+      <div class="dsep"></div>
+      <div class="dot"    id="d7"></div>
+      <div class="dot"    id="d8"></div>
+      <div class="dsep"></div>
+      <div class="dot"    id="d9"></div>
+      <div class="dot"    id="d10"></div>
+      <div class="dsep"></div>
+      <div class="dot"    id="d11"></div>
+      <div class="dot"    id="d12"></div>
+      <div class="dsep"></div>
+      <div class="dot"    id="d13"></div>
+      <div class="dot"    id="d14"></div>
+      <div class="dsep"></div>
+      <div class="dot"    id="d15"></div>
+      <div class="dot"    id="d16"></div>
+      <div class="dsep"></div>
+      <div class="dot"    id="d17"></div>
+      <div class="dsep"></div>
+      <div class="dot"    id="d18"></div>
+      <div class="dot"    id="d19"></div>
+      <div class="dsep"></div>
+      <div class="dot"    id="d20"></div>
+      <div class="dsep"></div>
+      <div class="dot"    id="d21"></div>
+      <div class="dsep"></div>
+      <div class="dot"    id="d22"></div>
+    </div>
+    <div style="display:flex;gap:18px;align-items:center">
+      <button id="bback" class="breset" onclick="goBack()" style="opacity:0;pointer-events:none">← back</button>
+      <button id="btn" class="btn" onclick="onAct()">FLATTEN  B×S → A</button>
+      <button class="breset" onclick="doReset()">↺ reset</button>
+    </div>
+  </div>
+
+  <div id="hint">DRAG · ORBIT<br>SCROLL · ZOOM<br>HOVER · INSPECT</div>
+  <div id="tt"></div>
+</div>
+
+<script src="js/main.js"></script>
+</body>
+</html>
