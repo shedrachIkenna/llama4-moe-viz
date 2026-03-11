@@ -139,9 +139,15 @@ The visualiser uses `B=3, S=3, D=10, E=3, K=1` as concrete dimensions so every t
 ## File structure
 
 ```
-moe-viz/
-├── index.html    ← the entire visualiser (self-contained)
-└── README.md
+llama4-moe-viz/
+├── index.html         
+├── css/
+│   └── style.css        
+├── js/
+│   └── main.js       
+├── README.md
+├── LICENSE
+└── .gitignore
 ```
 
 ---
